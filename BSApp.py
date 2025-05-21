@@ -169,6 +169,10 @@ with tab1:
             st.metric("Precio PUT Actual", f"${current_put:.2f}")
         
         st.pyplot(plot_option_prices(S_range, call_prices, put_prices, S))
+                # Análisis de IA
+        with st.spinner("Generando análisis..."):
+            analysis = model.generate_content(f"Analiza estos precios de opciones: CALL=${current_call:.2f}, PUT=${current_put:.2f} con S={S}, K={K}, días={days_to_expiry}, σ={sigma}, r={r}. Resumen conciso de 1-2 oraciones.")
+            st.success(analysis.text)
 
 with tab2:
     if st.button("Calcular Delta y Gamma"):
