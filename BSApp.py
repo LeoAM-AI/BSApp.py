@@ -37,18 +37,19 @@ def black_scholes_put(S, K, days_to_expiry, r, sigma):
     return put_price
 
 def calculate_greeks(S, K, days_to_expiry, r, sigma):
-    """Calcula las griegas para opciones CALL y PUT"""
+    """Calcula todas las griegas para opciones CALL y PUT"""
     T = days_to_expiry / 365.0
     d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
     
+    # Cálculo de griegas
     delta_call = norm.cdf(d1)
     delta_put = delta_call - 1
-    gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
-    vega = S * norm.pdf(d1) * np.sqrt(T) * 0.01
+    gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))  # Gamma es igual para CALL y PUT
+    vega = S * norm.pdf(d1) * np.sqrt(T) * 0.01  # Por 1% cambio en volatilidad
     theta_call = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * norm.cdf(d2)) / 365
     theta_put = (-S * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(-d2)) / 365
-    rho_call = K * T * np.exp(-r * T) * norm.cdf(d2) * 0.01
+    rho_call = K * T * np.exp(-r * T) * norm.cdf(d2) * 0.01  # Por 1% cambio en tasa
     rho_put = -K * T * np.exp(-r * T) * norm.cdf(-d2) * 0.01
     
     return {
@@ -64,7 +65,7 @@ def calculate_greeks(S, K, days_to_expiry, r, sigma):
 
 # --- Funciones para gráficas ---
 def plot_option_prices(S_range, call_prices, put_prices, current_S):
-    """Grafica los precios de CALL y PUT en función del precio del subyacente"""
+    """Grafica los precios de CALL y PUT"""
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(S_range, call_prices, label='CALL', color='green')
     ax.plot(S_range, put_prices, label='PUT', color='red')
@@ -76,9 +77,9 @@ def plot_option_prices(S_range, call_prices, put_prices, current_S):
     ax.grid(True)
     return fig
 
-def plot_greeks(S_range, deltas, thetas, rhos, current_S):
-    """Grafica las griegas principales en función del precio del subyacente"""
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
+def plot_delta_gamma(S_range, deltas, gammas, current_S):
+    """Grafica Delta y Gamma"""
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
     
     # Delta
     ax1.plot(S_range, deltas['call'], label='Delta CALL', color='green')
@@ -88,11 +89,32 @@ def plot_greeks(S_range, deltas, thetas, rhos, current_S):
     ax1.legend()
     ax1.grid(True)
     
+    # Gamma (igual para CALL y PUT)
+    ax2.plot(S_range, gammas, label='Gamma', color='purple')
+    ax2.axvline(x=current_S, color='blue', linestyle='--')
+    ax2.set_title('Gamma (igual para CALL y PUT)')
+    ax2.legend()
+    ax2.grid(True)
+    
+    plt.tight_layout()
+    return fig
+
+def plot_vega_theta_rho(S_range, vegas, thetas, rhos, current_S):
+    """Grafica Vega, Theta y Rho"""
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
+    
+    # Vega (igual para CALL y PUT)
+    ax1.plot(S_range, vegas, label='Vega', color='orange')
+    ax1.axvline(x=current_S, color='blue', linestyle='--')
+    ax1.set_title('Vega (sensibilidad a la volatilidad)')
+    ax1.legend()
+    ax1.grid(True)
+    
     # Theta
     ax2.plot(S_range, thetas['call'], label='Theta CALL', color='green')
     ax2.plot(S_range, thetas['put'], label='Theta PUT', color='red')
     ax2.axvline(x=current_S, color='blue', linestyle='--')
-    ax2.set_title('Theta de las Opciones (por día)')
+    ax2.set_title('Theta (decaimiento temporal por día)')
     ax2.legend()
     ax2.grid(True)
     
@@ -100,7 +122,7 @@ def plot_greeks(S_range, deltas, thetas, rhos, current_S):
     ax3.plot(S_range, rhos['call'], label='Rho CALL', color='green')
     ax3.plot(S_range, rhos['put'], label='Rho PUT', color='red')
     ax3.axvline(x=current_S, color='blue', linestyle='--')
-    ax3.set_title('Rho de las Opciones')
+    ax3.set_title('Rho (sensibilidad a tasas de interés)')
     ax3.legend()
     ax3.grid(True)
     
@@ -108,8 +130,8 @@ def plot_greeks(S_range, deltas, thetas, rhos, current_S):
     return fig
 
 # --- Interfaz de Usuario ---
-st.set_page_config(layout="wide", page_title="Black-Scholes AI", page_icon="📊")
-st.title("📈 Black-Scholes con Visualizaciones Mejoradas")
+st.set_page_config(layout="wide", page_title="Black-Scholes con Griegas", page_icon="📊")
+st.title("📈 Análisis Completo de Opciones con Todas las Griegas")
 st.markdown("By Leo Aguilar")
 
 # Sidebar
@@ -126,73 +148,77 @@ with st.sidebar:
     S_max = st.number_input("Precio Máximo", value=120.0, min_value=0.01)
     n_points = st.slider("Número de puntos", 20, 200, 50)
 
-# Pestañas
-tab1, tab2 = st.tabs(["Precios", "Griegas"])
-
 # Generar rango de precios para análisis
 S_range = np.linspace(S_min, S_max, n_points)
 
+# Pestañas
+tab1, tab2, tab3 = st.tabs(["Precios", "Delta & Gamma", "Vega, Theta & Rho"])
+
 with tab1:
-    if st.button("Calcular Precios y Mostrar Gráficas"):
-        # Calcular precios para el rango
+    if st.button("Calcular Precios"):
         call_prices = [black_scholes_call(s, K, days_to_expiry, r, sigma) for s in S_range]
         put_prices = [black_scholes_put(s, K, days_to_expiry, r, sigma) for s in S_range]
         
-        # Precios actuales
         current_call = black_scholes_call(S, K, days_to_expiry, r, sigma)
         current_put = black_scholes_put(S, K, days_to_expiry, r, sigma)
         
-        # Mostrar métricas
         col1, col2 = st.columns(2)
         with col1:
             st.metric("Precio CALL Actual", f"${current_call:.2f}")
         with col2:
             st.metric("Precio PUT Actual", f"${current_put:.2f}")
         
-        # Mostrar gráfica de precios
-        st.subheader("Evolución de Precios")
-        fig_prices = plot_option_prices(S_range, call_prices, put_prices, S)
-        st.pyplot(fig_prices)
-        
-        # Análisis de IA
-        with st.spinner("Generando análisis..."):
-            analysis = model.generate_content(f"Analiza estos precios de opciones: CALL=${current_call:.2f}, PUT=${current_put:.2f} con S={S}, K={K}, días={days_to_expiry}, σ={sigma}, r={r}. Resumen conciso de 1-2 oraciones.")
-            st.success(analysis.text)
+        st.pyplot(plot_option_prices(S_range, call_prices, put_prices, S))
 
 with tab2:
-    if st.button("Calcular Griegas y Mostrar Gráficas"):
-        # Calcular griegas para el rango
+    if st.button("Calcular Delta y Gamma"):
         deltas = {'call': [], 'put': []}
-        thetas = {'call': [], 'put': []}
-        rhos = {'call': [], 'put': []}
+        gammas = []
         
         for s in S_range:
             greeks = calculate_greeks(s, K, days_to_expiry, r, sigma)
             deltas['call'].append(greeks['Delta Call'])
             deltas['put'].append(greeks['Delta Put'])
+            gammas.append(greeks['Gamma'])
+        
+        current_greeks = calculate_greeks(S, K, days_to_expiry, r, sigma)
+        
+        cols = st.columns(2)
+        with cols[0]:
+            st.metric("Delta CALL Actual", f"{current_greeks['Delta Call']:.4f}")
+            st.metric("Delta PUT Actual", f"{current_greeks['Delta Put']:.4f}")
+        with cols[1]:
+            st.metric("Gamma Actual", f"{current_greeks['Gamma']:.6f}")
+        
+        st.pyplot(plot_delta_gamma(S_range, deltas, gammas, S))
+
+with tab3:
+    if st.button("Calcular Vega, Theta y Rho"):
+        vegas = []
+        thetas = {'call': [], 'put': []}
+        rhos = {'call': [], 'put': []}
+        
+        for s in S_range:
+            greeks = calculate_greeks(s, K, days_to_expiry, r, sigma)
+            vegas.append(greeks['Vega'])
             thetas['call'].append(greeks['Theta Call'])
             thetas['put'].append(greeks['Theta Put'])
             rhos['call'].append(greeks['Rho Call'])
             rhos['put'].append(greeks['Rho Put'])
         
-        # Griegas actuales
         current_greeks = calculate_greeks(S, K, days_to_expiry, r, sigma)
         
-        # Mostrar métricas
-        cols = st.columns(4)
+        cols = st.columns(3)
         with cols[0]:
-            st.metric("Delta CALL", f"{current_greeks['Delta Call']:.4f}")
+            st.metric("Vega Actual", f"{current_greeks['Vega']:.4f}")
         with cols[1]:
-            st.metric("Theta CALL", f"{current_greeks['Theta Call']:.4f}/día")
+            st.metric("Theta CALL Actual", f"{current_greeks['Theta Call']:.4f}/día")
+            st.metric("Theta PUT Actual", f"{current_greeks['Theta Put']:.4f}/día")
         with cols[2]:
-            st.metric("Rho CALL", f"{current_greeks['Rho Call']:.4f}")
-        with cols[3]:
-            st.metric("Delta PUT", f"{current_greeks['Delta Put']:.4f}")
+            st.metric("Rho CALL Actual", f"{current_greeks['Rho Call']:.4f}")
+            st.metric("Rho PUT Actual", f"{current_greeks['Rho Put']:.4f}")
         
-        # Mostrar gráficas de griegas
-        st.subheader("Evolución de las Griegas")
-        fig_greeks = plot_greeks(S_range, deltas, thetas, rhos, S)
-        st.pyplot(fig_greeks)
+        st.pyplot(plot_vega_theta_rho(S_range, vegas, thetas, rhos, S))
 
 # Nota legal
 st.caption("⚠️ Este análisis es informativo. Consulte con un profesional antes de invertir.")
